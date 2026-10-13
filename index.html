@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DC Metro · Live Digital Shadow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef1f4; --surface:#ffffff; --ink:#17243a; --muted:#5d6b7e; --line:#d3d9e1;
+  --sign:#1f2a44; --sign-ink:#ffffff; --amber:#b77d00; --alert:#c8102e; --ok:#2e7d4f;
+  --map:#f8f9fb; --station:#ffffff; --station-stroke:#17243a; --label-halo:#f8f9fb;
+  --RD:#bf0d3e; --OR:#ed8b00; --SV:#919d9d; --BL:#009cde; --YL:#ffd100; --GR:#00b140;
+  --occ-low:#2e9d5b; --occ-mid:#e0a100; --occ-high:#d23b3b; --occ-na:#a7b1bd;
+  color-scheme:light;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1726; --surface:#16233a; --ink:#e6ecf3; --muted:#93a4ba; --line:#2a3b57;
+    --sign:#e6ecf3; --sign-ink:#0e1726; --amber:#ffc93c; --alert:#ff5c6c; --ok:#5fcf8f;
+    --map:#111c2e; --station:#111c2e; --station-stroke:#e6ecf3; --label-halo:#111c2e;
+    --RD:#ff3d6e; --OR:#ffa53a; --SV:#b9c3c3; --BL:#3ec0ff; --YL:#ffe04d; --GR:#3ddc7a;
+    --occ-low:#4cc982; --occ-mid:#f2c14e; --occ-high:#ff6b6b; --occ-na:#56657a;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1726; --surface:#16233a; --ink:#e6ecf3; --muted:#93a4ba; --line:#2a3b57;
+  --sign:#e6ecf3; --sign-ink:#0e1726; --amber:#ffc93c; --alert:#ff5c6c; --ok:#5fcf8f;
+  --map:#111c2e; --station:#111c2e; --station-stroke:#e6ecf3; --label-halo:#111c2e;
+  --RD:#ff3d6e; --OR:#ffa53a; --SV:#b9c3c3; --BL:#3ec0ff; --YL:#ffe04d; --GR:#3ddc7a;
+  --occ-low:#4cc982; --occ-mid:#f2c14e; --occ-high:#ff6b6b; --occ-na:#56657a;
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0}
+*,*::before,*::after{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.4;display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 18px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--surface)}
+h1{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;font-size:clamp(22px,3vw,30px);line-height:1;margin:0;display:flex;align-items:center;gap:10px}
+h1 .m{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:4px;background:var(--sign);color:var(--sign-ink);font-size:26px}
+.status{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--muted);flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;padding:3px 11px;color:var(--ink);font-weight:600}
+.pill i{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+.pill.live i{background:var(--ok);animation:pulse 1.6s infinite}
+.pill.demo i{background:var(--amber)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(46,125,79,.5)}70%{box-shadow:0 0 0 7px rgba(46,125,79,0)}100%{box-shadow:0 0 0 0 rgba(46,125,79,0)}}
+@media (prefers-reduced-motion: reduce){.pill.live i{animation:none}}
+main{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 410px;min-height:0}
+#mapWrap{position:relative;background:var(--map);min-height:0;overflow:hidden;touch-action:none}
+#map{width:100%;height:100%;display:block;cursor:grab}
+#map:active{cursor:grabbing}
+.mapbar{position:absolute;left:12px;bottom:12px;right:12px;display:flex;gap:6px;flex-wrap:wrap;pointer-events:none;align-items:center}
+.mapbar>*{pointer-events:auto}
+.legend{display:flex;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:5px 10px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:12px;height:8px;border-radius:2px;display:inline-block}
+aside{border-left:1px solid var(--line);background:var(--surface);overflow:auto;padding:14px 16px 28px}
+h2{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:600;font-size:19px;margin:18px 0 8px}
+button,input{font:inherit;color:var(--ink)}
+button{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:5px 11px;cursor:pointer}
+button.on{background:var(--sign);color:var(--sign-ink);border-color:var(--sign)}
+button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.search{position:relative}
+.search input{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-size:16px}
+.results{position:absolute;left:0;right:0;top:100%;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:5;max-height:300px;overflow:auto;display:none}
+.results.open{display:block}
+.results div{padding:8px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.results div[aria-selected="true"],.results div:hover{background:var(--bg)}
+.stname{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;font-size:28px;line-height:1.05;margin:14px 0 6px}
+.dots{display:inline-flex;gap:4px}
+.dot{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;font-size:13px;color:#fff}
+.dot.YL,.dot.SV{color:#17243a}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.kpi{border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.kpi .v{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;font-size:26px;line-height:1.05}
+.kpi .k{font-size:12px;color:var(--muted)}
+.kpi .v.warn{color:var(--alert)} .kpi .v.good{color:var(--ok)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-weight:500;color:var(--muted);font-size:12px;padding:0 4px 4px}
+td{padding:6px 4px;border-top:1px solid var(--line);vertical-align:middle}
+td.r,th.r{text-align:right;white-space:nowrap}
+.arr{color:var(--ok);font-weight:700}
+.alerts div{font-size:14px;border-left:4px solid var(--amber);background:var(--bg);padding:7px 10px;border-radius:0 6px 6px 0;margin:6px 0}
+.alerts div .dots{margin-right:6px;vertical-align:middle}
+.lines{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.lc{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:14px}
+.lc b{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:19px}
+.lc span.d{color:var(--muted);font-size:12px;margin-left:auto;text-align:right}
+.small{font-size:13px;color:var(--muted)}
+.msg{font-size:14px;background:var(--bg);border-left:4px solid var(--amber);padding:8px 10px;border-radius:0 6px 6px 0;margin:0 0 12px}
+.msg.ok{border-color:var(--ok)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:14px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;font-weight:600}
+svg text{font-family:"Barlow","Arial",sans-serif}
+.st{cursor:pointer}
+.st circle{fill:var(--station);stroke:var(--station-stroke)}
+.st.sel circle{stroke:var(--amber);stroke-width:.1}
+.st text{fill:var(--ink);paint-order:stroke;stroke:var(--label-halo);stroke-width:.1px;stroke-linejoin:round}
+#map.far .st.minor text{display:none}
+.train text{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;pointer-events:none}
+@media (max-width:900px){
+  body{display:block;height:auto}
+  main{display:block}
+  #mapWrap{height:62vh}
+  aside{border-left:0;border-top:1px solid var(--line)}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="m">M</span>DC Metro · Live digital shadow</h1>
+  <div class="status">
+    <span class="pill" id="modePill"><i></i><span id="modeTxt">Connecting…</span></span>
+    <span id="clock">Washington time –</span>
+  </div>
+</header>
+<main>
+  <div id="mapWrap">
+    <svg id="map" role="img" aria-label="Map of the Washington DC Metrorail network with live train positions"></svg>
+    <div class="mapbar">
+      <button id="vFit">Fit to screen</button>
+      <div class="legend" aria-label="Train occupancy legend">
+        <span><i style="background:var(--occ-low)"></i>Many seats</span>
+        <span><i style="background:var(--occ-mid)"></i>Few seats</span>
+        <span><i style="background:var(--occ-high)"></i>Full</span>
+        <span><i style="background:transparent;border:2px solid var(--alert)"></i>Held 3+ min</span>
+      </div>
+    </div>
+  </div>
+  <aside>
+    <div id="msg" class="msg">Connecting to WMATA…</div>
+
+    <div class="search">
+      <input id="q" type="search" placeholder="Search a station…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="results" aria-label="Search a station">
+      <div class="results" id="results" role="listbox"></div>
+    </div>
+
+    <div class="stname" id="stName">–</div>
+    <div class="dots" id="stLines"></div>
+    <div class="kpis">
+      <div class="kpi"><div class="v" id="kNext">–</div><div class="k">Next train</div></div>
+      <div class="kpi"><div class="v" id="k15">–</div><div class="k">Trains, next 15 min</div></div>
+      <div class="kpi"><div class="v" id="kGap">–</div><div class="k">Average interval</div></div>
+      <div class="kpi"><div class="v" id="k8">–</div><div class="k">8-car trains</div></div>
+      <div class="kpi"><div class="v" id="kCrowd">–</div><div class="k">Full trains on these lines</div></div>
+      <div class="kpi"><div class="v" id="kInc">–</div><div class="k">Active alerts</div></div>
+    </div>
+
+    <h2>Arrivals</h2>
+    <div id="board"></div>
+    <p class="small" id="boardNote"></p>
+
+    <h2>Trains on each line now, by occupancy</h2>
+    <svg id="occChart" width="100%" height="150" role="img" aria-label="Number of trains on each line, split by occupancy level"></svg>
+
+    <h2>Service alerts</h2>
+    <div class="alerts" id="alerts"><span class="small">No alerts.</span></div>
+
+    <h2>Network overview</h2>
+    <div class="lines" id="lineStats"></div>
+
+    <h2>Data feed</h2>
+    <dl class="kv">
+      <dt>Source</dt><dd id="fSrc">–</dd>
+      <dt>Requests</dt><dd id="fReq">0</dd>
+      <dt>Positions updated</dt><dd id="fPos">–</dd>
+      <dt>Trains tracked</dt><dd id="fTr">0</dd>
+      <dt>Occupancy matched</dt><dd id="fOcc">–</dd>
+    </dl>
+    <p class="small">Train positions come from WMATA's track-circuit data and are refreshed about every 10 seconds. Occupancy comes from the GTFS-Realtime vehicle feed.</p>
+  </aside>
+</main>
+
+<script>
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+const SVGNS='http://www.w3.org/2000/svg';
+const LINE_CODES=['RD','OR','SV','BL','YL','GR'];
+const LINE_NAME={RD:'Red',OR:'Orange',SV:'Silver',BL:'Blue',YL:'Yellow',GR:'Green'};
+
+// ======= Built-in network, used only for the simulation (live mode loads everything from WMATA) =======
+const DEMO_ST={A15:['Shady Grove',39.1199,-77.1646],A14:['Rockville',39.0844,-77.1462],A13:['Twinbrook',39.0625,-77.1211],A12:['North Bethesda',39.0481,-77.1131],A11:['Grosvenor-Strathmore',39.0294,-77.104],A10:['Medical Center',38.9997,-77.097],A09:['Bethesda',38.9843,-77.0941],A08:['Friendship Heights',38.9608,-77.0858],A07:['Tenleytown-AU',38.9479,-77.0795],A06:['Van Ness-UDC',38.9435,-77.0631],A05:['Cleveland Park',38.9348,-77.058],A04:['Woodley Park',38.925,-77.0524],A03:['Dupont Circle',38.9096,-77.0434],A02:['Farragut North',38.9033,-77.0397],A01:['Metro Center',38.8983,-77.0281],B01:['Gallery Place',38.8983,-77.0219],B02:['Judiciary Square',38.896,-77.0166],B03:['Union Station',38.8977,-77.0074],B35:['NoMa-Gallaudet U',38.907,-77.003],B04:['Rhode Island Ave',38.921,-76.9959],B05:['Brookland-CUA',38.9333,-76.9945],B06:['Fort Totten',38.9518,-77.0022],B07:['Takoma',38.9757,-77.0181],B08:['Silver Spring',38.9939,-77.031],B09:['Forest Glen',39.0151,-77.0429],B10:['Wheaton',39.0384,-77.051],B11:['Glenmont',39.0617,-77.0535],
+K08:['Vienna',38.8779,-77.2717],K07:['Dunn Loring',38.8834,-77.2287],K06:['West Falls Church',38.9006,-77.1891],K05:['East Falls Church',38.8859,-77.1568],K04:['Ballston-MU',38.8821,-77.1116],K03:['Virginia Square-GMU',38.8834,-77.1029],K02:['Clarendon',38.8867,-77.0955],K01:['Court House',38.8907,-77.0847],C05:['Rosslyn',38.896,-77.0716],C04:['Foggy Bottom-GWU',38.9009,-77.0505],C03:['Farragut West',38.9013,-77.042],C02:['McPherson Square',38.9015,-77.0336],C01:['Metro Center',38.8983,-77.0281],D01:['Federal Triangle',38.8932,-77.0282],D02:['Smithsonian',38.8881,-77.0282],D03:["L'Enfant Plaza",38.8849,-77.0215],D04:['Federal Center SW',38.885,-77.0158],D05:['Capitol South',38.8851,-77.0059],D06:['Eastern Market',38.8846,-76.9958],D07:['Potomac Ave',38.8812,-76.9854],D08:['Stadium-Armory',38.8867,-76.9771],D09:['Minnesota Ave',38.8994,-76.9469],D10:['Deanwood',38.9078,-76.9356],D11:['Cheverly',38.9166,-76.9157],D12:['Landover',38.9343,-76.8906],D13:['New Carrollton',38.9478,-76.8721],
+N12:['Ashburn',39.0055,-77.491],N11:['Loudoun Gateway',38.9925,-77.46],N10:['Washington Dulles Airport',38.9554,-77.4482],N09:['Innovation Center',38.9604,-77.4155],N08:['Herndon',38.9531,-77.3855],N07:['Reston Town Center',38.953,-77.36],N06:['Wiehle-Reston East',38.9478,-77.3401],N04:['Spring Hill',38.9292,-77.2418],N03:['Greensboro',38.921,-77.234],N02:['Tysons',38.9207,-77.2232],N01:['McLean',38.9243,-77.2101],G01:['Benning Road',38.8907,-76.9382],G02:['Capitol Heights',38.8895,-76.9118],G03:['Addison Road',38.8867,-76.8937],G04:['Morgan Boulevard',38.8936,-76.8681],G05:['Downtown Largo',38.9008,-76.8442],
+J03:['Franconia-Springfield',38.766,-77.1681],J02:['Van Dorn Street',38.7994,-77.1291],C13:['King St-Old Town',38.8065,-77.0609],C12:['Braddock Road',38.8141,-77.0537],C11:['Potomac Yard',38.8253,-77.0484],C10:['Reagan National Airport',38.8534,-77.0441],C09:['Crystal City',38.8579,-77.0511],C08:['Pentagon City',38.863,-77.0596],C07:['Pentagon',38.8694,-77.0537],C06:['Arlington Cemetery',38.8846,-77.0631],C15:['Huntington',38.7939,-77.0752],C14:['Eisenhower Avenue',38.8003,-77.071],F03:["L'Enfant Plaza",38.8849,-77.0215],F02:['Archives',38.8935,-77.0219],F01:['Gallery Place',38.8983,-77.0219],E01:['Mt Vernon Sq',38.9054,-77.022],
+F11:['Branch Ave',38.8264,-76.9122],F10:['Suitland',38.844,-76.9318],F09:['Naylor Road',38.8513,-76.9562],F08:['Southern Avenue',38.841,-76.9751],F07:['Congress Heights',38.8455,-76.9882],F06:['Anacostia',38.8628,-76.9952],F05:['Navy Yard-Ballpark',38.8765,-77.005],F04:['Waterfront',38.8762,-77.0174],E02:['Shaw-Howard U',38.9134,-77.0219],E03:['U Street',38.917,-77.028],E04:['Columbia Heights',38.9285,-77.0326],E05:['Georgia Ave-Petworth',38.9374,-77.0235],E06:['Fort Totten',38.9518,-77.0022],E07:['West Hyattsville',38.9549,-76.9694],E08:['Hyattsville Crossing',38.9655,-76.9561],E09:['College Park-U of Md',38.9785,-76.9283],E10:['Greenbelt',39.011,-76.9113]};
+const DEMO_LINES={
+  RD:'A15 A14 A13 A12 A11 A10 A09 A08 A07 A06 A05 A04 A03 A02 A01 B01 B02 B03 B35 B04 B05 B06 B07 B08 B09 B10 B11',
+  OR:'K08 K07 K06 K05 K04 K03 K02 K01 C05 C04 C03 C02 C01 D01 D02 D03 D04 D05 D06 D07 D08 D09 D10 D11 D12 D13',
+  SV:'N12 N11 N10 N09 N08 N07 N06 N04 N03 N02 N01 K05 K04 K03 K02 K01 C05 C04 C03 C02 C01 D01 D02 D03 D04 D05 D06 D07 D08 G01 G02 G03 G04 G05',
+  BL:'J03 J02 C13 C12 C11 C10 C09 C08 C07 C06 C05 C04 C03 C02 C01 D01 D02 D03 D04 D05 D06 D07 D08 G01 G02 G03 G04 G05',
+  YL:'C15 C14 C13 C12 C11 C10 C09 C08 C07 F03 F02 F01 E01',
+  GR:'F11 F10 F09 F08 F07 F06 F05 F04 F03 F02 F01 E01 E02 E03 E04 E05 E06 E07 E08 E09 E10'
+};
+const TOGETHER_PAIRS=[['A01','C01'],['B01','F01'],['D03','F03'],['B06','E06']];
+
+// ======= Network model (filled from WMATA in live mode, or from the built-in data in simulation) =======
+let ST={};        // code -> {code,name,lat,lon,lines:Set,together}
+let LINES={};     // code -> [station codes in order]
+let TRACKS={};    // line -> {1:{idx:Map(circuit->i), stations:[[i,code],...]}, 2:{...}}
+let GROUPS={};    // display group id -> {id,name,codes:[...],lines:Set}
+let groupOf={};   // station code -> group id
+function buildGroups(){
+  GROUPS={};groupOf={};
+  for(const c in ST){const s=ST[c];const g=s.together&&ST[s.together]?[c,s.together].sort().join('+'):c;groupOf[c]=g;
+    if(!GROUPS[g])GROUPS[g]={id:g,name:s.name,codes:[],lines:new Set()};if(!GROUPS[g].codes.includes(c))GROUPS[g].codes.push(c);for(const l of s.lines)GROUPS[g].lines.add(l);}
+}
+function loadDemoNetwork(){
+  ST={};LINES={};TRACKS={};
+  for(const c in DEMO_ST){const[n,la,lo]=DEMO_ST[c];ST[c]={code:c,name:n,lat:la,lon:lo,lines:new Set(),together:null};}
+  for(const [a,b] of TOGETHER_PAIRS){ST[a].together=b;ST[b].together=a;}
+  for(const l of LINE_CODES){LINES[l]=DEMO_LINES[l].split(' ');for(const c of LINES[l])ST[c].lines.add(l);}
+  buildGroups();
+}
+function loadLiveNetwork(stations,routes){
+  ST={};LINES={};TRACKS={};
+  for(const s of stations){ST[s.Code]={code:s.Code,name:s.Name,lat:s.Lat,lon:s.Lon,lines:new Set([s.LineCode1,s.LineCode2,s.LineCode3,s.LineCode4].filter(x=>LINE_CODES.includes(x))),together:s.StationTogether1||null};}
+  for(const r of routes){
+    if(!LINE_CODES.includes(r.LineCode))continue;
+    const circ=[...r.TrackCircuits].sort((a,b)=>a.SeqNum-b.SeqNum);
+    const idx=new Map(),stations=[];
+    circ.forEach((c,i)=>{idx.set(c.CircuitId,i);if(c.StationCode&&ST[c.StationCode]&&(!stations.length||stations[stations.length-1][1]!==c.StationCode))stations.push([i,c.StationCode]);});
+    (TRACKS[r.LineCode]=TRACKS[r.LineCode]||{})[r.TrackNum]={idx,stations};
+    if(r.TrackNum===1||!LINES[r.LineCode])LINES[r.LineCode]=stations.map(x=>x[1]);
+  }
+  for(const l in LINES)for(const c of LINES[l])ST[c].lines.add(l);
+  buildGroups();
+}
+
+// ======= Projection and line offsets =======
+const LAT0=38.9,LON0=-77.03,K=100,COSL=Math.cos(LAT0*Math.PI/180);
+const proj=s=>({x:(s.lon-LON0)*COSL*K,y:-(s.lat-LAT0)*K});
+let segLines={}; // "A|B" -> [lines]
+const LW=0.17;
+function buildSegments(){segLines={};for(const l of LINE_CODES){const L=LINES[l];if(!L)continue;for(let i=0;i<L.length-1;i++){const k=[L[i],L[i+1]].sort().join('|');(segLines[k]=segLines[k]||[]).push(l);}}for(const k in segLines)segLines[k].sort((a,b)=>LINE_CODES.indexOf(a)-LINE_CODES.indexOf(b));}
+function segOffset(a,b,l){const k=[a,b].sort().join('|');const ls=segLines[k]||[l];const i=ls.indexOf(l);const n=ls.length;const o=(i-(n-1)/2)*LW;return a<b?o:-o;}
+function offsetPoint(a,b,l,f,extra){
+  const pa=proj(ST[a]),pb=proj(ST[b]);const dx=pb.x-pa.x,dy=pb.y-pa.y,len=Math.hypot(dx,dy)||1;
+  const nx=-dy/len,ny=dx/len;const o=segOffset(a,b,l)+(extra||0);
+  return {x:pa.x+dx*f+nx*o,y:pa.y+dy*f+ny*o};
+}
+
+// ======= SVG =======
+const svg=$('map');const gLines=document.createElementNS(SVGNS,'g'),gSt=document.createElementNS(SVGNS,'g'),gTr=document.createElementNS(SVGNS,'g');svg.append(gLines,gSt,gTr);
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const lc=l=>css('--'+l);
+let stEls={};
+function drawNetwork(){
+  gLines.innerHTML='';gSt.innerHTML='';stEls={};
+  buildSegments();
+  for(const l of LINE_CODES){const L=LINES[l];if(!L)continue;
+    for(let i=0;i<L.length-1;i++){const a=offsetPoint(L[i],L[i+1],l,0),b=offsetPoint(L[i],L[i+1],l,1);
+      const ln=document.createElementNS(SVGNS,'line');ln.setAttribute('x1',a.x);ln.setAttribute('y1',a.y);ln.setAttribute('x2',b.x);ln.setAttribute('y2',b.y);ln.setAttribute('stroke',lc(l));ln.setAttribute('stroke-width',LW);ln.setAttribute('stroke-linecap','round');ln.dataset.l=l;gLines.appendChild(ln);}}
+  const termini=new Set();for(const l in LINES){termini.add(LINES[l][0]);termini.add(LINES[l][LINES[l].length-1]);}
+  for(const gid in GROUPS){const G=GROUPS[gid];const pts=G.codes.map(c=>proj(ST[c]));const p={x:pts.reduce((a,b)=>a+b.x,0)/pts.length,y:pts.reduce((a,b)=>a+b.y,0)/pts.length};
+    const major=G.lines.size>1||G.codes.some(c=>termini.has(c));
+    const g=document.createElementNS(SVGNS,'g');g.setAttribute('class','st'+(major?'':' minor'));g.setAttribute('tabindex','0');g.setAttribute('role','button');g.setAttribute('aria-label',G.name+' station');
+    const c=document.createElementNS(SVGNS,'circle');c.setAttribute('cx',p.x);c.setAttribute('cy',p.y);c.setAttribute('r',major?0.2:0.12);c.setAttribute('stroke-width',major?0.07:0.05);
+    const t=document.createElementNS(SVGNS,'text');t.textContent=G.name;t.setAttribute('x',p.x+0.26);t.setAttribute('y',p.y+0.1);t.setAttribute('font-size',major?0.34:0.26);t.setAttribute('font-weight',major?600:400);
+    g.append(c,t);gSt.appendChild(g);stEls[gid]={g};
+    const pick=()=>selectGroup(gid);g.addEventListener('click',pick);g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();pick();}});}
+  if(selected&&stEls[selected])stEls[selected].g.classList.add('sel');
+  trEls.forEach(e=>e.g.remove());trEls.clear();
+}
+let view={x:-25,y:-15,w:50,h:40};
+function fitView(){const r=svg.getBoundingClientRect();let a=1e9,b=1e9,c=-1e9,d=-1e9;for(const k in ST){if(!ST[k].lines.size)continue;const p=proj(ST[k]);a=Math.min(a,p.x);b=Math.min(b,p.y);c=Math.max(c,p.x);d=Math.max(d,p.y);}
+  if(a>c)return;const bx={x:a-1,y:b-1,w:c-a+4,h:d-b+2};const ar=(r.width/r.height)||1;let w=bx.w,h=bx.h;if(w/h>ar)h=w/ar;else w=h*ar;view={x:bx.x+bx.w/2-w/2,y:bx.y+bx.h/2-h/2,w,h};applyView();}
+function applyView(){svg.setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`);svg.classList.toggle('far',view.w>22);}
+const ptrs=new Map();let pinch=0;
+svg.addEventListener('pointerdown',e=>{if(e.target.closest('.st'))return;svg.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});if(ptrs.size===2){const[a,b]=[...ptrs.values()];pinch=Math.hypot(a.x-b.x,a.y-b.y);}});
+svg.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;const p=ptrs.get(e.pointerId);const r=svg.getBoundingClientRect();const k=view.w/r.width;
+  if(ptrs.size===1){view.x-=(e.clientX-p.x)*k;view.y-=(e.clientY-p.y)*k;applyView();}p.x=e.clientX;p.y=e.clientY;
+  if(ptrs.size===2){const[a,b]=[...ptrs.values()];const d=Math.hypot(a.x-b.x,a.y-b.y);if(pinch)zoomAt((a.x+b.x)/2,(a.y+b.y)/2,pinch/d);pinch=d;}});
+const up=e=>{ptrs.delete(e.pointerId);pinch=0;};svg.addEventListener('pointerup',up);svg.addEventListener('pointercancel',up);
+function zoomAt(cx,cy,f){const r=svg.getBoundingClientRect();const mx=view.x+(cx-r.left)/r.width*view.w,my=view.y+(cy-r.top)/r.height*view.h;const nw=Math.max(2,Math.min(120,view.w*f));const nf=nw/view.w;view.x=mx-(mx-view.x)*nf;view.y=my-(my-view.y)*nf;view.w=nw;view.h*=nf;applyView();}
+svg.addEventListener('wheel',e=>{e.preventDefault();zoomAt(e.clientX,e.clientY,1+e.deltaY*0.0015);},{passive:false});
+window.addEventListener('resize',()=>{const r=svg.getBoundingClientRect();const nh=view.w*r.height/r.width;view.y+=(view.h-nh)/2;view.h=nh;applyView();});
+
+// ======= Data state =======
+let mode='connecting',reqCount=0,trains=[],posAt=0,preds=[],predAt=0,incidents=[],occ={vehicles:[],at:0},matched=0;
+function setMode(m,txt){mode=m;$('modePill').className='pill '+(m==='live'?'live':m==='demo'?'demo':'');$('modeTxt').textContent=txt;}
+function msg(html,ok){const e=$('msg');e.innerHTML=html;e.classList.toggle('ok',!!ok);}
+async function api(name,timeout=12000){const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),timeout);
+  try{reqCount++;const r=await fetch('/api/'+name,{signal:ctl.signal});let body=null;try{body=await r.json();}catch(e){}
+    if(!r.ok||!body)throw new Error((body&&body.error)||('HTTP '+r.status));if(body.error)throw new Error(body.error);return body;}
+  finally{clearTimeout(t);}}
+
+// Train position from track circuit
+function trainPlace(t){
+  const line=t.LineCode;if(!LINE_CODES.includes(line)||!TRACKS[line])return null;
+  let tr=null,i=-1;for(const n of [1,2]){const T=TRACKS[line][n];if(T&&T.idx.has(t.CircuitId)){tr=T;i=T.idx.get(t.CircuitId);break;}}
+  if(!tr)return null;
+  const S=tr.stations;let a=null,b=null;
+  for(const s of S){if(s[0]<=i)a=s;if(s[0]>=i){b=s;break;}}
+  if(!a&&!b)return null;if(!a)a=b;if(!b)b=a;
+  const f=a===b?0:(i-a[0])/(b[0]-a[0]);
+  return {line,a:a[1],b:b[1],f,dir:t.DirectionNum===2?-1:1};
+}
+function placeXY(p){
+  if(p.a===p.b){const q=proj(ST[p.a]);return q;}
+  return offsetPoint(p.a,p.b,p.line,p.f,0.3*p.dir*(p.a<p.b?1:-1));
+}
+const OCC_CLASS=v=>v===undefined||v===null||v===7||v===8?'na':v<=1?'low':v===2?'mid':'high';
+const ROUTE_TO_LINE=r=>{r=(r||'').toUpperCase();if(r.startsWith('RED')||r==='RD')return 'RD';if(r.startsWith('ORANGE')||r==='OR')return 'OR';if(r.startsWith('SILVER')||r==='SV')return 'SV';if(r.startsWith('BLUE')||r==='BL')return 'BL';if(r.startsWith('YELLOW')||r==='YL')return 'YL';if(r.startsWith('GREEN')||r==='GR')return 'GR';return null;};
+function matchOccupancy(){
+  // 1) by vehicle id/label, 2) by nearest GTFS position on the same line (within ~600 m)
+  const vs=occ.vehicles||[];matched=0;
+  const byId=new Map();for(const v of vs){if(v.id)byId.set(String(v.id),v);if(v.label)byId.set('L'+v.label,v);}
+  for(const t of trains){t.occ=undefined;let v=byId.get(String(t.TrainId))||byId.get('L'+t.TrainNumber);
+    if(!v&&t.place){const p=placeXY(t.place);let best=null,bd=0.6;for(const c of vs){if(c.lat===undefined)continue;const cl=ROUTE_TO_LINE(c.route);if(cl&&cl!==t.LineCode)continue;const q=proj({lat:c.lat,lon:c.lon});const d=Math.hypot(q.x-p.x,q.y-p.y);if(d<bd){bd=d;best=c;}}v=best;}
+    if(v&&v.occ!==undefined){t.occ=v.occ;matched++;}}
+}
+async function pollPositions(){if(mode!=='live')return;try{const d=await api('positions');trains=(d.TrainPositions||[]).map(t=>({...t,place:trainPlace(t)})).filter(t=>t.place);posAt=Date.now();matchOccupancy();}catch(e){handleErr(e);}setTimeout(pollPositions,10000);}
+async function pollPredictions(){if(mode!=='live')return;try{const d=await api('predictions');preds=d.Trains||[];predAt=Date.now();renderSelected();}catch(e){handleErr(e);}setTimeout(pollPredictions,20000);}
+async function pollIncidents(){if(mode!=='live')return;try{const d=await api('incidents');incidents=(d.Incidents||[]).map(i=>({text:i.Description,lines:(i.LinesAffected||'').split(/[;,\s]+/).filter(x=>LINE_CODES.includes(x)),type:i.IncidentType}));}catch(e){handleErr(e);}setTimeout(pollIncidents,60000);}
+async function pollOccupancy(){if(mode!=='live')return;try{const d=await api('occupancy');occ={vehicles:d.vehicles||[],at:Date.now()};matchOccupancy();}catch(e){occ={vehicles:[],at:0,err:e.message};}setTimeout(pollOccupancy,30000);}
+let errs=0;function handleErr(e){errs++;if(errs>=8&&mode==='live'){startDemo('The live feed stopped responding ('+e.message+'). Showing simulated data. Reload the page to retry.');}}
+
+async function startLive(){
+  if(location.protocol==='file:'||/claude\.ai|claudeusercontent/.test(location.hostname)){
+    startDemo(location.protocol==='file:'?'Opened as a local file, so live data is not available. Deploy to Netlify to get live data. Showing simulated data.':'This preview cannot reach external servers. Deploy to Netlify to get live data. Showing simulated data.');return;}
+  $('fSrc').textContent='WMATA API via Netlify';
+  try{
+    let net=null;try{const c=JSON.parse(localStorage.getItem('wmataNet')||'null');if(c&&Date.now()-c.at<864e5)net=c;}catch(e){}
+    if(!net){const [s,r]=await Promise.all([api('stations',20000),api('routes',20000)]);net={at:Date.now(),stations:s.Stations||[],routes:r.StandardRoutes||[]};try{localStorage.setItem('wmataNet',JSON.stringify(net));}catch(e){}}
+    loadLiveNetwork(net.stations,net.routes);
+    if(Object.keys(LINES).length<4)throw new Error('route data incomplete');
+    setMode('live','Live data');msg('Connected to WMATA. Train positions refresh about every 10 seconds.',true);
+    drawNetwork();fitView();selectGroup(groupByName('Metro Center')||Object.keys(GROUPS)[0]);
+    pollPositions();pollPredictions();pollIncidents();pollOccupancy();
+  }catch(e){
+    const hint=/WMATA_API_KEY/.test(e.message)?' Add your key under Site configuration > Environment variables in Netlify, then redeploy.':/401/.test(e.message)?' Check that the key in Netlify is correct and subscribed to the Default Tier.':' Check that the site is deployed with the netlify folder included.';
+    startDemo('Live data is unavailable: '+e.message+'.'+hint+' Showing simulated data.');
+  }
+}
+
+// ======= Simulation =======
+function startDemo(reason){
+  setMode('demo','Simulated data');msg(reason);$('fSrc').textContent='Simulation';
+  loadDemoNetwork();drawNetwork();fitView();
+  if(!selected||!GROUPS[selected])selectGroup(groupByName('Metro Center'));else renderSelected();
+}
+function hash(n){n=Math.imul(n^61,0x45d9f3b);n^=n>>>16;return (n>>>0)/4294967296;}
+const PER_STOP=2.2,HEADWAY={RD:6,OR:8,SV:10,BL:10,YL:10,GR:8};
+function demoTick(now){
+  const out=[];const tmin=now/60000;
+  LINE_CODES.forEach((l,li)=>{const L=LINES[l];if(!L)return;const n=L.length,H=HEADWAY[l],span=(n-1)*PER_STOP;
+    for(const dir of [1,-1]){const off=li*1.3+(dir>0?0:3.1);
+      for(let k=Math.floor((tmin-span-off-3)/H);k<=Math.floor((tmin-off)/H);k++){
+        const hold=hash(k*17+li*5+(dir>0?3:7))<0.06?3.5:0;
+        const raw=(tmin-(k*H+off))/PER_STOP;if(raw<0||raw>n-1+hold/PER_STOP)continue;
+        let q=raw;const fl=Math.floor(q),fr=q-fl,mv=fr<0.25?0:(fr-0.25)/0.75;q=Math.min(n-1,fl+mv*mv*(3-2*mv));
+        const pos=dir>0?q:n-1-q;const i=Math.min(n-2,Math.floor(pos));const f=pos-i;
+        const r=hash(k*7+li*13+(dir>0?1:2));const o=r<0.45?1:r<0.8?2:r<0.95?5:7;
+        out.push({TrainId:'d'+l+dir+k,TrainNumber:String(100+k%900),LineCode:l,CarCount:hash(k+li)<0.6?8:6,DirectionNum:dir>0?1:2,SecondsAtLocation:fr<0.25?Math.round(fr*PER_STOP*60):10,
+          DestinationStationCode:dir>0?L[n-1]:L[0],place:{line:l,a:L[i],b:L[i+1],f,dir},occ:o,held:hold&&raw>n-3});}}});
+  return out;
+}
+function demoPredictions(now){
+  const out=[];
+  for(const t of demoTick(now)){const L=LINES[t.LineCode];const pos=L.indexOf(t.place.a)+t.place.f;const dir=t.DirectionNum===1?1:-1;
+    for(let j=0;j<L.length;j++){const ahead=(j-pos)*dir;if(ahead<-0.05||ahead>9)continue;const m=Math.round(ahead*PER_STOP);
+      const dest=ST[t.DestinationStationCode];out.push({Line:t.LineCode,LocationCode:L[j],DestinationName:dest?dest.name:'',Car:String(t.CarCount),Group:String(t.DirectionNum),Min:m<=0?(ahead<0.1?'BRD':'ARR'):String(m)});}}
+  return out;
+}
+
+// ======= Map trains =======
+const trEls=new Map();
+function drawTrains(list){
+  const seen=new Set();
+  for(const t of list){const p=t.place;if(!p||!ST[p.a]||!ST[p.b])continue;seen.add(t.TrainId);const target=placeXY(p);let e=trEls.get(t.TrainId);
+    if(!e){const g=document.createElementNS(SVGNS,'g');g.setAttribute('class','train');
+      const r=document.createElementNS(SVGNS,'rect');r.setAttribute('width','0.56');r.setAttribute('height','0.32');r.setAttribute('x','-0.28');r.setAttribute('y','-0.16');r.setAttribute('rx','0.08');
+      const o=document.createElementNS(SVGNS,'rect');o.setAttribute('width','0.56');o.setAttribute('height','0.09');o.setAttribute('x','-0.28');o.setAttribute('y','0.18');o.setAttribute('rx','0.03');
+      const tx=document.createElementNS(SVGNS,'text');tx.setAttribute('font-size','0.22');tx.setAttribute('text-anchor','middle');tx.setAttribute('y','0.075');
+      g.append(r,o,tx);gTr.appendChild(g);e={g,r,o,tx,x:target.x,y:target.y};trEls.set(t.TrainId,e);}
+    e.x+=(target.x-e.x)*0.06;e.y+=(target.y-e.y)*0.06;e.g.setAttribute('transform',`translate(${e.x.toFixed(3)} ${e.y.toFixed(3)})`);
+    e.r.setAttribute('fill',lc(t.LineCode));e.tx.textContent=t.CarCount?String(t.CarCount):'';e.tx.setAttribute('fill',t.LineCode==='YL'||t.LineCode==='SV'?'#17243a':'#fff');
+    const held=t.held||t.SecondsAtLocation>=180;e.r.setAttribute('stroke',held?css('--alert'):'none');e.r.setAttribute('stroke-width','0.08');
+    e.o.setAttribute('fill',css('--occ-'+OCC_CLASS(t.occ)));}
+  for(const [id,e] of trEls)if(!seen.has(id)){e.g.remove();trEls.delete(id);}
+}
+function renderNetworkStats(list){
+  $('lineStats').innerHTML=LINE_CODES.filter(l=>LINES[l]).map(l=>{const ts=list.filter(t=>t.LineCode===l);const held=ts.filter(t=>t.held||t.SecondsAtLocation>=180).length;
+    return `<div class="lc"><span class="dot ${l}" style="background:${lc(l)}">${l}</span><b>${ts.length}</b><span class="d">${held?held+' held':'moving'}</span></div>`;}).join('');
+  // occupancy chart
+  const sv=$('occChart');const W=sv.clientWidth||370,H=150,top=10,bottom=24,bw=(W-10)/6;
+  const cls=['low','mid','high','na'];const data=LINE_CODES.map(l=>{const ts=list.filter(t=>t.LineCode===l);const o={l,tot:ts.length};for(const c of cls)o[c]=ts.filter(t=>OCC_CLASS(t.occ)===c).length;return o;});
+  const max=Math.max(1,...data.map(d=>d.tot));let h='';
+  data.forEach((d,i)=>{let y=H-bottom;for(const c of cls){const hh=d[c]/max*(H-top-bottom-14);y-=hh;if(hh>0)h+=`<rect x="${5+i*bw+6}" y="${y}" width="${bw-12}" height="${hh}" fill="${css('--occ-'+c)}"></rect>`;}
+    h+=`<text x="${5+i*bw+bw/2}" y="${y-3}" text-anchor="middle" font-size="12" fill="${css('--ink')}">${d.tot||''}</text><text x="${5+i*bw+bw/2}" y="${H-6}" text-anchor="middle" font-size="12" font-weight="600" fill="${lc(d.l)}">${LINE_NAME[d.l]}</text>`;});
+  sv.innerHTML=h;
+}
+
+// ======= Station panel =======
+let selected=null;
+function groupByName(n){for(const g in GROUPS)if(GROUPS[g].name===n)return g;return null;}
+function selectGroup(gid){
+  if(!gid||!GROUPS[gid])return;
+  if(selected&&stEls[selected])stEls[selected].g.classList.remove('sel');
+  selected=gid;if(stEls[gid])stEls[gid].g.classList.add('sel');
+  $('q').value='';closeResults();renderSelected();
+}
+const minVal=m=>m==='BRD'||m==='ARR'?0:(isFinite(+m)?+m:null);
+function renderSelected(){
+  if(!selected||!GROUPS[selected])return;const G=GROUPS[selected];
+  $('stName').textContent=G.name;
+  const lines=LINE_CODES.filter(l=>G.lines.has(l));
+  $('stLines').innerHTML=lines.map(l=>`<span class="dot ${l}" style="background:${lc(l)}" title="${LINE_NAME[l]} Line">${l}</span>`).join('');
+  const all=(mode==='demo'?demoPredictions(Date.now()):preds).filter(p=>G.codes.includes(p.LocationCode)&&LINE_CODES.includes(p.Line)&&minVal(p.Min)!==null);
+  all.sort((a,b)=>minVal(a.Min)-minVal(b.Min));
+  const setK=(id,v,cls)=>{const e=$(id);e.textContent=v;e.className='v'+(cls?' '+cls:'');};
+  if(mode==='connecting'){['kNext','k15','kGap','k8','kCrowd','kInc'].forEach(i=>setK(i,'–'));return;}
+  const n=all[0];setK('kNext',n?(minVal(n.Min)===0?(n.Min==='BRD'?'Boarding':'Arriving'):n.Min+' min'):'–');
+  setK('k15',String(all.filter(p=>minVal(p.Min)<=15).length));
+  const gaps=[];const byDir={};for(const p of all){(byDir[p.Line+p.Group]=byDir[p.Line+p.Group]||[]).push(minVal(p.Min));}
+  for(const k in byDir){const a=byDir[k];for(let i=1;i<a.length;i++)if(a[i]>a[i-1])gaps.push(a[i]-a[i-1]);}
+  const gap=gaps.length?gaps.reduce((x,y)=>x+y,0)/gaps.length:null;setK('kGap',gap===null?'–':gap.toFixed(1)+' min',gap!==null&&gap>12?'warn':'');
+  const withCars=all.filter(p=>p.Car==='8'||p.Car==='6');setK('k8',withCars.length?Math.round(withCars.filter(p=>p.Car==='8').length/withCars.length*100)+'%':'–');
+  const list=mode==='demo'?demoTick(Date.now()):trains;
+  const lt=list.filter(t=>lines.includes(t.LineCode)&&OCC_CLASS(t.occ)!=='na');
+  const full=lt.length?Math.round(lt.filter(t=>OCC_CLASS(t.occ)==='high').length/lt.length*100):null;
+  setK('kCrowd',full===null?'–':full+'%',full!==null&&full>=25?'warn':full!==null&&full<10?'good':'');
+  const inc=incidents.filter(i=>!i.lines.length||i.lines.some(l=>lines.includes(l)));
+  setK('kInc',String(inc.length),inc.length?'warn':'good');
+  const rows=all.slice(0,12).map(p=>{const m=minVal(p.Min);const when=m===0?`<span class="arr">${p.Min==='BRD'?'Boarding':'Arriving'}</span>`:p.Min+' min';
+    return `<tr><td><span class="dot ${p.Line}" style="background:${lc(p.Line)}">${p.Line}</span></td><td>${p.DestinationName||p.Destination||''}</td><td>${p.Car||''}</td><td>${p.Group||''}</td><td class="r">${when}</td></tr>`;}).join('');
+  $('board').innerHTML=rows?`<table><thead><tr><th>Line</th><th>Destination</th><th>Cars</th><th>Track</th><th class="r">Arrives</th></tr></thead><tbody>${rows}</tbody></table>`:'<p class="small">No trains are predicted right now.</p>';
+  $('boardNote').textContent=mode==='live'?(predAt?'Updated '+fmtT(predAt):'Loading predictions…'):'Simulated data';
+  $('alerts').innerHTML=inc.length?inc.slice(0,6).map(i=>`<div>${i.lines.length?'<span class="dots">'+i.lines.map(l=>`<span class="dot ${l}" style="background:${lc(l)};width:20px;height:20px;font-size:11px">${l}</span>`).join('')+'</span>':''}${String(i.text||'').replace(/</g,'&lt;')}</div>`).join(''):`<span class="small">${mode==='demo'?'No alerts in simulation.':'No alerts for these lines.'}</span>`;
+}
+const fmtT=ms=>new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit',second:'2-digit'}).format(new Date(ms));
+
+// ======= Search =======
+const qEl=$('q'),resEl=$('results');let resItems=[],resSel=-1;
+const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+function runSearch(){const q=norm(qEl.value);if(!q){closeResults();return;}
+  resItems=Object.values(GROUPS).filter(g=>g.lines.size&&norm(g.name).includes(q)).sort((a,b)=>(norm(a.name).startsWith(q)?0:1)-(norm(b.name).startsWith(q)?0:1)||a.name.localeCompare(b.name)).slice(0,10);resSel=-1;
+  resEl.innerHTML=resItems.length?resItems.map((g,i)=>`<div role="option" data-i="${i}">${g.name}<span class="dots">${LINE_CODES.filter(l=>g.lines.has(l)).map(l=>`<span class="dot ${l}" style="background:${lc(l)};width:18px;height:18px;font-size:10px">${l}</span>`).join('')}</span></div>`).join(''):'<div class="small" aria-disabled="true">No matching station</div>';
+  resEl.classList.add('open');qEl.setAttribute('aria-expanded','true');resEl.querySelectorAll('[data-i]').forEach(el=>el.onclick=()=>selectGroup(resItems[+el.dataset.i].id));}
+function closeResults(){resEl.classList.remove('open');qEl.setAttribute('aria-expanded','false');}
+qEl.addEventListener('input',runSearch);
+qEl.addEventListener('keydown',e=>{if(!resItems.length)return;if(e.key==='ArrowDown'){resSel=Math.min(resItems.length-1,resSel+1);e.preventDefault();}else if(e.key==='ArrowUp'){resSel=Math.max(0,resSel-1);e.preventDefault();}else if(e.key==='Enter'){selectGroup(resItems[Math.max(0,resSel)].id);e.preventDefault();return;}else if(e.key==='Escape'){closeResults();return;}
+  resEl.querySelectorAll('[data-i]').forEach((el,i)=>el.setAttribute('aria-selected',i===resSel));});
+document.addEventListener('click',e=>{if(!e.target.closest('.search'))closeResults();});
+$('vFit').onclick=fitView;
+
+// ======= Loop =======
+let lastPanel=0;
+function frame(now){
+  const list=mode==='live'?trains:mode==='demo'?demoTick(Date.now()):[];
+  drawTrains(list);
+  if(now-lastPanel>1000){lastPanel=now;
+    $('clock').textContent='Washington time '+fmtT(Date.now());renderNetworkStats(list);renderSelected();
+    $('fReq').textContent=reqCount;$('fPos').textContent=mode==='live'?(posAt?fmtT(posAt):'–'):'Simulated';$('fTr').textContent=list.length;
+    $('fOcc').textContent=mode==='live'?(occ.err?'Unavailable':occ.at?matched+' of '+list.length+' trains':'–'):'Simulated';}
+  requestAnimationFrame(frame);
+}
+loadDemoNetwork();drawNetwork();fitView();requestAnimationFrame(frame);startLive();
+})();
+</script>
+</body>
+</html>
